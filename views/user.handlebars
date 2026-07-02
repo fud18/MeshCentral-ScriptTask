@@ -56,19 +56,42 @@
       background-color: lightgray;
     }
     #controlBar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
       width: 100%;
-      height: 20px;
-      border-bottom: 1px solid black;
-      font-size: smaller;
+      min-height: 30px;
+      border-bottom: 1px solid #d7d7d7;
+      padding: 0 0 7px 0;
       margin-bottom: 7px;
+      font-size: 12px;
     }
-    #controlBar span {
+    .stButton {
+      display: inline-block;
+      border: 1px solid #b7b7b7;
+      border-radius: 3px;
+      background: linear-gradient(#ffffff, #e9e9e9);
+      color: #222;
       cursor: pointer;
-      padding-left: 4px;
-      padding-right: 4px;
+      font-family: inherit;
+      font-size: 12px;
+      line-height: 22px;
+      min-height: 24px;
+      padding: 0 10px;
+      text-decoration: none;
+      user-select: none;
+      white-space: nowrap;
     }
-    #controlBar > span:nth-child(n+2) {
-      border-left: 1px solid black;
+    .stButton:hover {
+      background: linear-gradient(#f7f7f7, #dddddd);
+      border-color: #999;
+    }
+    .stButton:active {
+      background: linear-gradient(#dddddd, #f7f7f7);
+    }
+    .stButtonDanger {
+      color: #7f1d1d;
     }
     .infoBar {
       background-color: #777;
@@ -172,6 +195,11 @@
     .flink {
         cursor: pointer;
     }
+    .stActionLink {
+        color: #0366d6;
+        cursor: pointer;
+        text-decoration: underline;
+    }
 </style>
 <body onload="doOnLoad();">
 <div id="scriptTaskUser">
@@ -179,13 +207,13 @@
   Upload: <input type="file" id="files" name="files[]" multiple onchange="fileUpload();"/>
   <hr />
   <div id="controlBar">
-    <span data-st-action="new">New</span>
-    <span data-st-action="rename">Rename</span>
-    <span data-st-action="edit">Edit</span>
-    <span data-st-action="delete">Delete</span>
-    <span data-st-action="newFolder">New Folder</span>
-    <span data-st-action="download">Download</span>
-    <span data-st-action="run">Run</span>
+    <button type="button" class="stButton" data-st-action="new">New</button>
+    <button type="button" class="stButton" data-st-action="rename">Rename</button>
+    <button type="button" class="stButton" data-st-action="edit">Edit</button>
+    <button type="button" class="stButton stButtonDanger" data-st-action="delete">Delete</button>
+    <button type="button" class="stButton" data-st-action="newFolder">New Folder</button>
+    <button type="button" class="stButton" data-st-action="download">Download</button>
+    <button type="button" class="stButton" data-st-action="run">Run</button>
   </div>
   <div id="scripts_endpoints">
     <div id="scriptContainer">
@@ -194,10 +222,10 @@
       <div id="history">
           <div class="infoBar">Advanced Run</div>
           <div id="multiRun" class="infoContent">
-              <div style="padding-top: 15px;"><button type="button" data-st-action="advancedRun">Schedule on Selected</button></div>
+              <div style="padding-top: 15px;"><button type="button" class="stButton" data-st-action="advancedRun">Schedule on Selected</button></div>
               <div class="tblFloat">
                   <table id="mRunTbl" cellspacing="0" cellpadding="0">
-                      <tr><td><label><input type="checkbox" data-st-action="selectAllNodes"> Select All</label></td></tr>
+                      <tr><td><label><input type="checkbox" onclick="selAllNodes(this);"> Select All</label></td></tr>
                   </table>
               </div>
               <div class="tblFloat">
@@ -241,7 +269,7 @@
                 <th>Variable Name</th><th>Value</th><th>Scope</th><th>Scope Target</th><th>Action</th>
             </table>
             <br />
-            <span class="flink" data-st-action="newVar">[+]</span>
+            <span class="flink" onclick="newVar();return false;">[+]</span>
         </div>
       </div>
       
@@ -291,7 +319,7 @@ function updateNodesTable() {
       var item = {...parent.meshes[i], ...{}};
       if (item.mtype == 2) {
           let tpl = `<tr class="stNodeRow">
-            <td><label><input type="checkbox" data-st-action="selectNodesByMesh" value="${item._id}"> ${item.name}</label></td>
+            <td><label><input type="checkbox" onclick="selNodesByMesh(this);" value="${item._id}"> ${item.name}</label></td>
           </tr>`;
           nodeRowIns.insertAdjacentHTML('beforeend', tpl);
       }
@@ -299,7 +327,7 @@ function updateNodesTable() {
   var nodeRowIns = document.querySelector('#mRunTblTag');
   tagList.forEach(function(i) {
       let tpl = `<tr class="stNodeRow">
-        <td><label><input type="checkbox" data-st-action="selectNodesByTag" value="${i}"> ${i}</label></td>
+        <td><label><input type="checkbox" onclick="selNodesByTag(this)" value="${i}"> ${i}</label></td>
       </tr>`;
       nodeRowIns.insertAdjacentHTML('beforeend', tpl);
   });
@@ -335,9 +363,8 @@ function selAllNodes(el) {
   return true;
 }
 
-
-function bindScriptTaskUi() {
-  var controlActions = {
+function bindScriptTaskButtons() {
+  var actions = {
     new: goNew,
     rename: goRename,
     edit: goEdit,
@@ -345,37 +372,125 @@ function bindScriptTaskUi() {
     newFolder: goNewFolder,
     download: goDownload,
     run: goRun,
-    advancedRun: goAdvancedRun,
-    newVar: newVar
+    advancedRun: goAdvancedRun
   };
 
-  document.addEventListener('click', function(ev) {
-    var actionEl = ev.target.closest('[data-st-action]');
-    if (actionEl) {
-      var action = actionEl.getAttribute('data-st-action');
-      if (controlActions[action]) { ev.preventDefault(); controlActions[action](); return false; }
-      if (action == 'selectAllNodes') { return selAllNodes(actionEl); }
-      if (action == 'selectNodesByMesh') { return selNodesByMesh(actionEl); }
-      if (action == 'selectNodesByTag') { return selNodesByTag(actionEl); }
-    }
-
-    var scriptEl = ev.target.closest('.liscript');
-    if (scriptEl) { ev.preventDefault(); goScript(scriptEl); return false; }
-
-    var folderEl = ev.target.closest('.lifolder');
-    if (folderEl) { ev.preventDefault(); toggleCollapse(folderEl); return false; }
-
-    var delSched = ev.target.closest('.delSched');
-    if (delSched) { ev.preventDefault(); deleteSchedule(delSched); return false; }
-
-    var editVarEl = ev.target.closest('.st-edit-var');
-    if (editVarEl) { ev.preventDefault(); editVar(editVarEl); return false; }
-
-    var delVarEl = ev.target.closest('.st-del-var');
-    if (delVarEl) { ev.preventDefault(); delVar(delVarEl); return false; }
+  document.querySelectorAll('[data-st-action]').forEach(function(btn) {
+    if (btn.getAttribute('data-st-bound') == '1') return;
+    btn.setAttribute('data-st-bound', '1');
+    btn.addEventListener('click', function(ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      var action = btn.getAttribute('data-st-action');
+      if (actions[action]) actions[action]();
+    });
   });
+}
 
-  function goDownload() {
+function doOnLoad() {
+  bindScriptTaskButtons();
+  redrawScriptTree();
+  selectPreviouslySelectedScript();
+  updateNodesTable();
+  parent.meshserver.send({ 'action': 'plugin', 'plugin': 'scripttask', 'pluginaction': 'loadNodeHistory', 'nodeId': parent.currentNode._id });
+  parent.meshserver.send({ 'action': 'plugin', 'plugin': 'scripttask', 'pluginaction': 'loadVariables', 'nodeId': parent.currentNode._id });  
+}
+
+function selectPreviouslySelectedScript() {
+    var sel_item = parent.getstore('_scripttask_sel_item', null)
+    if (sel_item != null) {
+      var s = document.getElementById(sel_item);
+      if (s != null) {
+        s.classList.toggle('liselected');
+        goScript(s);
+      }
+    }
+    if (sel_item != null)   parent.meshserver.send({ 'action': 'plugin', 'plugin': 'scripttask', 'pluginaction': 'loadScriptHistory', 'scriptId': sel_item });
+}
+
+function goRun() {
+    var selScript = document.querySelectorAll('.liselected');
+    if (selScript.length) {
+      var scriptId = selScript[0].getAttribute('x-data-id');
+      if (scriptId == selScript[0].getAttribute('x-data-folder'))
+      {
+          parent.setDialogMode(2, "Oops!", 1, null, 'Please select a script. A folder is currently selected.'); 
+      }
+      else {
+          parent.meshserver.send({ 'action': 'plugin', 'plugin': 'scripttask', 'pluginaction': 'runScript', 'scriptId': scriptId, 'nodes': [ parent.currentNode._id ], 'currentNodeId': parent.currentNode._id });
+      }
+    } else {
+        parent.setDialogMode(2, "Oops!", 1, null, 'No script has been selected to run on the machines.'); 
+    }
+}
+
+function goEdit() {
+    var selScript = document.querySelectorAll('.liselected');
+    if (selScript.length && (selScript[0].getAttribute('x-data-id') != selScript[0].getAttribute('x-data-folder'))) {
+      var scriptId = selScript[0].getAttribute('x-data-id');
+      window.open('/pluginadmin.ashx?pin=scripttask&user=1&edit=1&id=' + scriptId, '_blank');
+      window.callback = function(sd) {
+          parent.meshserver.send({ 'action': 'plugin', 'plugin': 'scripttask', 'pluginaction': 'editScript', 'scriptId': sd._id, 'scriptType': sd.type, 'scriptName': sd.name, 'scriptContent': sd.content, 'currentNodeId': parent.currentNode._id });
+      };
+    } else {
+      parent.setDialogMode(2, "Oops!", 1, null, 'No script has been selected to edit.'); 
+    }
+}
+
+function goAdvancedRun() {
+  var cboxes = document.getElementsByName("runOn[]");
+  var sel = [];
+  
+  cboxes.forEach((n) => {
+      if (n.checked) sel.push(n.value);
+  });
+  if (sel.length == 0) {
+      parent.setDialogMode(2, "Oops!", 1, null, 'No machines have been selected.'); 
+      return;
+  }
+  var selScript = document.querySelectorAll('.liselected');
+  if (selScript.length) {
+    var scriptId = selScript[0].getAttribute('x-data-id');
+    if (scriptId == selScript[0].getAttribute('x-data-folder')) {
+      parent.setDialogMode(2, "Oops!", 1, null, 'Please select a script. A folder is currently selected.');
+      return;
+    }
+    var sWin = window.open('/pluginadmin.ashx?pin=scripttask&user=1&schedule=1', 'schedule', "width=800,height=600");
+    sWin.scriptId = scriptId;
+    sWin.nodes = sel;
+    window.schedCallback = function(opts) {
+        parent.meshserver.send({ 
+            'action': 'plugin', 
+            'plugin': 'scripttask', 
+            'pluginaction': 'addScheduledJob', 
+            'scriptId': opts.scriptId, 
+            'nodes': opts.nodes, 
+            'currentNodeId': parent.currentNode._id,
+            'schedule': opts
+        });
+    };
+  } else {
+    parent.setDialogMode(2, "Oops!", 1, null, 'No script has been selected to run on the machines.'); 
+  }
+}
+
+var coll = document.getElementsByClassName("infoBar");
+for (var i = 0; i < coll.length; i++) {
+  coll[i].addEventListener("click", function() {
+    this.classList.toggle("active");
+    var content = this.nextElementSibling;
+    if (content.style.display === "block") {
+      content.style.display = "none";
+    } else {
+      content.style.display = "block";
+    }
+    content.style.maxHeight = '300px';
+    content.style.overflowY = 'scroll';
+    resizeIframe();
+  });
+}
+
+function goDownload() {
   var isSelected = document.querySelectorAll('.liselected');
   if (isSelected.length == 0) return;
   var sel = isSelected[0];
@@ -405,12 +520,12 @@ function redrawScriptTree() {
       indent = (f.path.match(/\//g) || []).length + 1;
       var name = f.path.match(/[^\/]+$/);
       folder_id = f._id;
-      str += '<div draggable="true" x-data-path="' + f.path + '" x-data-id="' + f._id + '" x-data-folder="' + folder_id + '" style="margin-left: ' + indent + 'em;" class="lifolder"><span class="fname">' + name + '</span></div>';
+      str += '<div draggable="true" x-data-path="' + f.path + '" x-data-id="' + f._id + '" x-data-folder="' + folder_id + '" style="margin-left: ' + indent + 'em;" class="lifolder" onclick="toggleCollapse(this);"><span class="fname">' + name + '</span></div>';
       lastpath = f.path;
       indent += 1;
     }
     if (f.type != 'folder') {
-        str += '<div id="' + f._id + '" draggable="true"  x-data-path="' + f.path + '" x-data-id="' + f._id + '" x-data-folder="' + folder_id + '" style="margin-left: ' + indent + 'em;" class="liscript"><span class="fname">' + f.name + '</span> [<span class="ftype">' + f.filetype + '</span>]</div>';
+        str += '<div id="' + f._id + '" draggable="true"  x-data-path="' + f.path + '" x-data-id="' + f._id + '" x-data-folder="' + folder_id + '" style="margin-left: ' + indent + 'em;" class="liscript" onclick="goScript(this);"><span class="fname">' + f.name + '</span> [<span class="ftype">' + f.filetype + '</span>]</div>';
     }
 
   });
@@ -584,7 +699,7 @@ function redrawScriptTree() {
           if (vd.scope == 'script' && vd.scopeTarget != scopeTargetScriptId) return;
           if (vd.scope == 'mesh' && vd.scopeTarget != parent.currentNode.meshid) return;
           if (vd.scope == 'node' && vd.scopeTarget != parent.currentNode._id) return;
-          let actionHtml = '<span class="flink st-edit-var">Edit</span> <span class="flink st-del-var">Delete</span>';
+          let actionHtml = '<span class="flink" onclick="editVar(this);">Edit</span> <span class="flink" onclick="delVar(this);">Delete</span>';
           let tpl = '<td>' + vd.name + '</td> \
             <td>' + vd.value + '</td> \
             <td>' + vd.scopeTxt + '</td> \
@@ -716,7 +831,7 @@ function redrawScriptTree() {
       if (nh.nextRun == null) nh.nextRunTxt = 'Never';
       if (nh.nextRun < nh.lastRun) nh.nextRunTxt = 'Running now';
       
-      nh.actionTxt = '<span class="delSched">Delete</span>';
+      nh.actionTxt = '<button type="button" class="stButton stButtonDanger delSched" onclick="deleteSchedule(this);">Delete</button>';
       return nh;
   }
   function secondsToHms(d) {
@@ -877,7 +992,10 @@ function redrawScriptTree() {
     parent.meshserver.send({ action: 'plugin', plugin: 'scripttask', pluginaction: 'delete', id: id });
   }
   function deleteSchedule(el) {
-      var id = el.parentNode.parentNode.getAttribute('x-data-id');
+      var row = el.closest ? el.closest('tr') : el.parentNode.parentNode;
+      if (!row) return;
+      var id = row.getAttribute('x-data-id');
+      if (!id) return;
       parent.setDialogMode(2, "Delete Schedule", 3, deleteScheduleEx, 'Are you sure you want to delete this schedule? <input type="hidden" id="stdelid" value="' + id + '" />'); 
   }
   function toggleCollapse(el) {
