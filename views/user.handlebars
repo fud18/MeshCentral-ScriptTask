@@ -207,13 +207,13 @@
   Upload: <input type="file" id="files" name="files[]" multiple onchange="fileUpload();"/>
   <hr />
   <div id="controlBar">
-    <button type="button" class="stButton" data-st-action="new">New</button>
-    <button type="button" class="stButton" data-st-action="rename">Rename</button>
-    <button type="button" class="stButton" data-st-action="edit">Edit</button>
-    <button type="button" class="stButton stButtonDanger" data-st-action="delete">Delete</button>
-    <button type="button" class="stButton" data-st-action="newFolder">New Folder</button>
-    <button type="button" class="stButton" data-st-action="download">Download</button>
-    <button type="button" class="stButton" data-st-action="run">Run</button>
+    <button type="button" class="stButton" onclick="goNew();">New</button>
+    <button type="button" class="stButton" onclick="goRename();">Rename</button>
+    <button type="button" class="stButton" onclick="goEdit();">Edit</button>
+    <button type="button" class="stButton stButtonDanger" onclick="goDelete();">Delete</button>
+    <button type="button" class="stButton" onclick="goNewFolder();">New Folder</button>
+    <button type="button" class="stButton" onclick="goDownload();">Download</button>
+    <button type="button" class="stButton" onclick="goRun();">Run</button>
   </div>
   <div id="scripts_endpoints">
     <div id="scriptContainer">
@@ -222,7 +222,7 @@
       <div id="history">
           <div class="infoBar">Advanced Run</div>
           <div id="multiRun" class="infoContent">
-              <div style="padding-top: 15px;"><button type="button" class="stButton" data-st-action="advancedRun">Schedule on Selected</button></div>
+              <div style="padding-top: 15px;"><button type="button" class="stButton" onclick="goAdvancedRun();">Schedule on Selected</button></div>
               <div class="tblFloat">
                   <table id="mRunTbl" cellspacing="0" cellpadding="0">
                       <tr><td><label><input type="checkbox" onclick="selAllNodes(this);"> Select All</label></td></tr>
@@ -925,10 +925,11 @@ function redrawScriptTree() {
     var scriptEl = document.querySelectorAll('.liselected');
     if (scriptEl.length != 1) return;
     var el = scriptEl[0];
-    var name = el.querySelector('.fname').innerHTML;
+    var oldName = el.querySelector('.fname').innerHTML;
     var id = el.getAttribute('x-data-id');
-    parent.setDialogMode(2, "Rename " + name, 3, renameEx, '<input type="text"  value="' + name + '" id=stfilename style=width:100% /><input type="hidden" id="stid" value="' + id + '" />'); 
-    parent.focusTextBox('stfilename');
+    var name = prompt('Rename:', oldName);
+    if (!name) return;
+    parent.meshserver.send({ action: 'plugin', plugin: 'scripttask', pluginaction: 'rename', name: name, id: id, currentNodeId: parent.currentNode._id });
   }
   function newEx() {
     var name = parent.document.getElementById('stfilename').value;
@@ -940,12 +941,27 @@ function redrawScriptTree() {
     var scriptEl = document.querySelectorAll('.liselected');
     var folder_id = null;
     if (scriptEl.length > 0) {
-        var el = scriptEl[0];
-        folder_id = el.getAttribute('x-data-folder');
+        folder_id = scriptEl[0].getAttribute('x-data-folder');
     }
-    parent.setDialogMode(2, "New Script", 3, newEx, 'Name: <input type="text"  value="" id=stfilename style=width:100% /><br />Type:<select id="stfiletype"><option value="bash">Bash</option><option value="bat">BAT</option><option value="ps1">PS1</option></select><input type="hidden" id="stfolderid" value="' + folder_id + '" />'); 
-    parent.focusTextBox('stfilename');
+    if (folder_id == 'null') folder_id = null;
+
+    var name = prompt('New script name:', 'NewScript.ps1');
+    if (!name) return;
+
+    var ext = name.split('.').pop().toLowerCase();
+    var fileType = (ext == 'ps1' || ext == 'bat') ? ext : 'bash';
+
+    parent.meshserver.send({
+        action: 'plugin',
+        plugin: 'scripttask',
+        pluginaction: 'new',
+        name: name,
+        parent_id: folder_id,
+        filetype: fileType,
+        currentNodeId: parent.currentNode._id
+    });
   }
+
   function newFolderEx() {
     var name = parent.document.getElementById('stfoldername').value;
     var parent_id = parent.document.getElementById('stfolderid').value;
@@ -954,12 +970,11 @@ function redrawScriptTree() {
   function goNewFolder() {
     var scriptEl = document.querySelectorAll('.liselected');
     var folder_id = null;
-    if (scriptEl.length > 0) {
-      var el = scriptEl[0];
-      folder_id = el.getAttribute('x-data-folder');
-    }
-    parent.setDialogMode(2, "New Folder", 3, newFolderEx, '<input type="text"  value="" id=stfoldername style=width:100% /><input type="hidden" id="stfolderid" value="' + folder_id + '" />'); 
-    parent.focusTextBox('stfoldername');
+    if (scriptEl.length > 0) folder_id = scriptEl[0].getAttribute('x-data-folder');
+    if (folder_id == 'null') folder_id = null;
+    var name = prompt('New folder name:', 'New Folder');
+    if (!name) return;
+    parent.meshserver.send({ action: 'plugin', plugin: 'scripttask', pluginaction: 'newFolder', name: name, parent_id: folder_id, currentNodeId: parent.currentNode._id });
   }
   function goScript(el) {
     var xdi = el.getAttribute('x-data-id');
@@ -983,20 +998,22 @@ function redrawScriptTree() {
     var els = document.querySelectorAll('.liselected');
     if (els.length == 0) return;
     var el = els[0];
-    var name = el.innerHTML;
     var id = el.getAttribute('x-data-id');
-    parent.setDialogMode(2, "Delete " + name, 3, deleteEx, 'Are you sure? <input type="hidden" id="stdelid" value="' + id + '" />'); 
+    var name = el.querySelector('.fname') ? el.querySelector('.fname').innerHTML : el.innerHTML;
+    if (!confirm('Delete ' + name + '?')) return;
+    parent.meshserver.send({ action: 'plugin', plugin: 'scripttask', pluginaction: 'delete', id: id, currentNodeId: parent.currentNode._id });
   }
   function deleteScheduleEx() {
     var id = parent.document.getElementById('stdelid').value;
     parent.meshserver.send({ action: 'plugin', plugin: 'scripttask', pluginaction: 'delete', id: id });
   }
   function deleteSchedule(el) {
-      var row = el.closest ? el.closest('tr') : el.parentNode.parentNode;
-      if (!row) return;
-      var id = row.getAttribute('x-data-id');
-      if (!id) return;
-      parent.setDialogMode(2, "Delete Schedule", 3, deleteScheduleEx, 'Are you sure you want to delete this schedule? <input type="hidden" id="stdelid" value="' + id + '" />'); 
+    var row = el.closest ? el.closest('tr') : el.parentNode.parentNode;
+    if (!row) return;
+    var id = row.getAttribute('x-data-id');
+    if (!id) return;
+    if (!confirm('Delete this scheduled job?')) return;
+    parent.meshserver.send({ action: 'plugin', plugin: 'scripttask', pluginaction: 'delete', id: id, currentNodeId: parent.currentNode._id });
   }
   function toggleCollapse(el) {
     var xdf = el.getAttribute('x-data-path');
