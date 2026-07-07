@@ -2,7 +2,7 @@
   "name": "ScriptTask",
   "shortName": "scripttask",
   "version": "0.0.21",
-  "author": "Ryan Blenis / Cory Funk",
+  "author": "Ryan Blenis",
   "description": "Script (PowerShell, BAT, Bash) runner for endpoints",
   "hasAdminPanel": false,
   "homepage": "https://github.com/fud18/MeshCentral-ScriptTask",
